@@ -1,6 +1,7 @@
 #include "optional.h"
 
 #include <cassert>
+#include <memory>
 
 struct C {
     C() noexcept {
@@ -72,7 +73,7 @@ void TestInitialization() {
         Optional<C> o(std::move(c));
         assert(o.HasValue());
         assert(C::def_ctor == 1 && C::move_ctor == 1 && C::copy_ctor == 0 && C::copy_assign == 0
-               && C::move_assign == 0);
+            && C::move_assign == 0);
         assert(C::InstanceCount() == 2);
     }
     assert(C::InstanceCount() == 0);
@@ -85,7 +86,7 @@ void TestInitialization() {
         assert(o1.HasValue());
         assert(o2.HasValue());
         assert(C::def_ctor == 1 && C::move_ctor == 0 && C::copy_ctor == 2 && C::copy_assign == 0
-               && C::move_assign == 0);
+            && C::move_assign == 0);
         assert(C::InstanceCount() == 3);
     }
     assert(C::InstanceCount() == 0);
@@ -96,7 +97,7 @@ void TestInitialization() {
         Optional<C> o1(c);
         const Optional<C> o2(std::move(o1));
         assert(C::def_ctor == 1 && C::copy_ctor == 1 && C::move_ctor == 1 && C::copy_assign == 0
-               && C::move_assign == 0);
+            && C::move_assign == 0);
         assert(C::InstanceCount() == 3);
     }
     assert(C::InstanceCount() == 0);
@@ -116,14 +117,12 @@ void TestAssignment() {
         o2 = o1;
         assert(C::copy_ctor == 1 && C::copy_assign == 0 && C::dtor == 0);
     }
-    
-    {  // Assign non empty to non-empty
+    {  // Assign non-empty to non-empty
         C::Reset();
         o2 = o1;
         assert(C::copy_ctor == 0 && C::copy_assign == 1 && C::dtor == 0);
     }
-    
-    {  // Assign empty to non empty
+    {  // Assign empty to non-empty
         C::Reset();
         Optional<C> empty;
         o1 = empty;
@@ -142,32 +141,23 @@ void TestMoveAssignment() {
     }
     {  // Assign a non-empty to empty
         Optional<C> o1;
-        Optional<C> o2{C{}};
+        Optional<C> o2{ C{} };
         C::Reset();
         o1 = std::move(o2);
         assert(C::move_ctor == 1 && C::move_assign == 0 && C::dtor == 0);
     }
-    {  // Assign non empty to non-empty
-        Optional<C> o1{C{}};
-        Optional<C> o2{C{}};
+    {  // Assign non-empty to non-empty
+        Optional<C> o1{ C{} };
+        Optional<C> o2{ C{} };
         C::Reset();
         o2 = std::move(o1);
         assert(C::copy_ctor == 0 && C::move_assign == 1 && C::dtor == 0);
     }
-    {  // Assign empty to non empty
-        Optional<C> o1{C{}};
+    {  // Assign empty to non-empty
+        Optional<C> o1{ C{} };
         C::Reset();
         Optional<C> empty;
         o1 = std::move(empty);
-
-        size_t count_def_ctor = C::def_ctor;
-        size_t count_copy_ctor = C::copy_ctor;
-        size_t count_move_ctor = C::move_ctor;
-        size_t count_copy_assign = C::copy_assign;
-        size_t count_move_assign = C::move_assign;
-        size_t count_dtor = C::dtor;
-        //size_t count = C::InstanceCount();
-
         assert(C::copy_ctor == 0 && C::move_ctor == 0 && C::move_assign == 0 && C::dtor == 1);
         assert(!o1.HasValue());
     }
@@ -188,8 +178,10 @@ void TestValueAccess() {
             Optional<int> o;
             [[maybe_unused]] int v = o.Value();
             assert(false);
-        } catch (const BadOptionalAccess& /*e*/) {
-        } catch (...) {
+        }
+        catch (const BadOptionalAccess& /*e*/) {
+        }
+        catch (...) {
             assert(false);
         }
     }
@@ -198,11 +190,34 @@ void TestValueAccess() {
 void TestReset() {
     C::Reset();
     {
-        Optional<C> o{C()};
+        Optional<C> o{ C() };
         assert(o.HasValue());
         o.Reset();
         assert(!o.HasValue());
     }
+}
+
+void TestEmplace() {
+    struct S {
+        S(int i, std::unique_ptr<int>&& p)
+            : i(i)
+            , p(std::move(p))  //
+        {
+        }
+        int i;
+        std::unique_ptr<int> p;
+    };
+
+    Optional<S> o;
+    o.Emplace(1, std::make_unique<int>(2));
+    assert(o.HasValue());
+    assert(o->i == 1);
+    assert(*(o->p) == 2);
+
+    o.Emplace(3, std::make_unique<int>(4));
+    assert(o.HasValue());
+    assert(o->i == 3);
+    assert(*(o->p) == 4);
 }
 
 int main() {
@@ -212,7 +227,10 @@ int main() {
         TestMoveAssignment();
         TestValueAccess();
         TestReset();
-    } catch (...) {
+        TestEmplace();
+    }
+    catch (...) {
         assert(false);
     }
 }
+
